@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -30,7 +32,7 @@ type Cotacao struct {
 }
 
 type Dolar struct {
-	Id          int64   `json:"-"`
+	Id          int64   `gorm:"primaryKey" json:"-"`
 	ValorCambio float64 `json:"valor"`
 }
 
@@ -101,37 +103,24 @@ func PersisteCotacao(cotacao *Dolar) error {
 	return nil
 }
 
-func AddDolar(db *sql.DB, cotacao *Dolar) error {
+func AddDolar(db *gorm.DB, cotacao *Dolar) error {
 
 	log.Println(cotacao)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
-	stmt, err := db.PrepareContext(ctx, "insert into dolars(id, valor_cambio) values(?, ?)")
-	if err != nil {
-		log.Println("erro prepare", err)
-		return err
-	}
-	defer stmt.Close()
-
-	ctx1, cancel1 := context.WithTimeout(context.Background(), 10*time.Millisecond)
-	defer cancel1()
-
-	_, err = stmt.ExecContext(ctx1, nil, cotacao.ValorCambio)
-	if err != nil {
-		log.Println("Erro execute", err)
-		return err
-	}
+	db.WithContext(ctx).Create(&cotacao)
 
 	return nil
 }
 
-func ConexaoDb() (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", "./db/cotacao.db")
+func ConexaoDb() (*gorm.DB, error) {
+	db, err := gorm.Open(sqlite.Open("./db/cotacao.db"), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
+	db.AutoMigrate(&Dolar{})
 
 	return db, nil
 
