@@ -60,6 +60,7 @@ func BuscaCotacao(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("erro api", err)
 		retorno := ErrorResp{Mensagem: err.Error()}
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(retorno)
 		return
 	}
@@ -70,6 +71,7 @@ func BuscaCotacao(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("erro conversao", err)
 		retorno := ErrorResp{Mensagem: err.Error()}
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(retorno)
 		return
 	}
@@ -79,6 +81,7 @@ func BuscaCotacao(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("erro Persiste", err)
 		retorno := ErrorResp{Mensagem: err.Error()}
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(retorno)
 		return
 	}
@@ -110,9 +113,15 @@ func AddDolar(db *gorm.DB, cotacao *Dolar) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
-	db.WithContext(ctx).Create(&cotacao)
+	select {
+	case <-ctx.Done():
+		log.Println(ctx.Done())
+		return ctx.Err()
+	default:
+		db.WithContext(ctx).Create(&cotacao)
+		return nil
+	}
 
-	return nil
 }
 
 func ConexaoDb() (*gorm.DB, error) {
